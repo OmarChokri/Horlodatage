@@ -1,3 +1,4 @@
+#Horlodatage
 Système Distribué avec Horodatage en C
 Ce projet implémente un système distribué simple en C, où 4 processus communiquent via sockets TCP pour simuler des événements locaux et des échanges de messages. Chaque processus utilise un type d'horloge (scalaire, vectorielle ou matricielle) pour horodater les événements et gérer leur ordre.
 Fonctionnalités
