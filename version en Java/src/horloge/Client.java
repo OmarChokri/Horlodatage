@@ -3,23 +3,29 @@ package horloge;
 import java.io.*;
 import java.net.*;
 import java.util.Random;
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
 
 public class Client {
     private static final int PORT = 8080;
     private static final int N_PROCESSES = 4;
+    private static JTextArea outputArea;
 
     // Implémentation des opérations locales
     static class BasicLocalOperation implements LocalOperation {
         @Override
         public int execute(int pid) {
-            System.out.println("Processus " + pid + ": Exécution d'opérations locales...");
+            String message = "Processus " + pid + ": Exécution d'opérations locales...\n";
+            outputArea.append(message);
             Random rand = new Random();
             int a = rand.nextInt(100);
             int b = rand.nextInt(100);
             int c = a + b;
             int d = c * 2;
             int e = d - a;
-            System.out.println("Processus " + pid + ": Résultat des opérations locales: " + e);
+            message = "Processus " + pid + ": Résultat des opérations locales: " + e + "\n";
+            outputArea.append(message);
             return e;
         }
     }
@@ -35,7 +41,7 @@ public class Client {
         @Override
         public void update() {
             value++;
-            System.out.println("Horloge scalaire mise à jour: " + value);
+            outputArea.append("Horloge scalaire mise à jour: " + value + "\n");
         }
 
         @Override
@@ -62,12 +68,13 @@ public class Client {
         @Override
         public void update() {
             vector[pid]++;
-            System.out.print("Horloge vectorielle mise à jour: [");
+            StringBuilder message = new StringBuilder("Horloge vectorielle mise à jour: [");
             for (int i = 0; i < N_PROCESSES; i++) {
-                System.out.print(vector[i]);
-                if (i < N_PROCESSES - 1) System.out.print(",");
+                message.append(vector[i]);
+                if (i < N_PROCESSES - 1) message.append(",");
             }
-            System.out.println("]");
+            message.append("]\n");
+            outputArea.append(message.toString());
         }
 
         @Override
@@ -104,14 +111,14 @@ public class Client {
         @Override
         public void update() {
             matrix[pid][pid]++;
-            System.out.println("Horloge matricielle mise à jour:");
+            outputArea.append("Horloge matricielle mise à jour:\n");
             for (int i = 0; i < N_PROCESSES; i++) {
-                System.out.print("[");
+                outputArea.append("[");
                 for (int j = 0; j < N_PROCESSES; j++) {
-                    System.out.print(matrix[i][j]);
-                    if (j < N_PROCESSES - 1) System.out.print(",");
+                    outputArea.append(String.valueOf(matrix[i][j]));
+                    if (j < N_PROCESSES - 1) outputArea.append(",");
                 }
-                System.out.println("]");
+                outputArea.append("]\n");
             }
         }
 
@@ -134,15 +141,77 @@ public class Client {
         }
     }
 
-    public static void main(String[] args) throws Exception {
-        if (args.length != 2) {
-            System.out.println("Usage: java Client <pid> <clock_type>");
-            return;
-        }
+    public static void main(String[] args) {
+        JFrame frame = new JFrame("Horloge System");
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setSize(800, 400);
+        frame.setLayout(new BorderLayout());
 
-        int pid = Integer.parseInt(args[0]);
-        int clockType = Integer.parseInt(args[1]); // 0: scalaire, 1: vectorielle, 2: matricielle
+        // Panel for controls
+        JPanel controlPanel = new JPanel();
+        controlPanel.setLayout(new FlowLayout());
 
+        // Process ID selection
+        JLabel pidLabel = new JLabel("Processus ID (PID): ");
+        JComboBox<String> pidComboBox = new JComboBox<>(new String[]{"0", "1", "2", "3"});
+        controlPanel.add(pidLabel);
+        controlPanel.add(pidComboBox);
+
+        // Clock Type selection
+        JLabel clockTypeLabel = new JLabel("Type d'Horloge: ");
+        JComboBox<String> clockTypeComboBox = new JComboBox<>(new String[]{"Scalaire", "Vectorielle", "Matricielle"});
+        controlPanel.add(clockTypeLabel);
+        controlPanel.add(clockTypeComboBox);
+
+        // Start button
+        JButton startButton = new JButton("Lancer le Client");
+        controlPanel.add(startButton);
+
+        // Output area
+        outputArea = new JTextArea(15, 70);
+        outputArea.setEditable(false);
+        JScrollPane scrollPane = new JScrollPane(outputArea);
+
+        // Add components to frame
+        frame.add(controlPanel, BorderLayout.NORTH);
+        frame.add(scrollPane, BorderLayout.CENTER);
+
+        // Action listener for start button
+        startButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                outputArea.setText(""); // Clear previous output
+                int pid = Integer.parseInt((String) pidComboBox.getSelectedItem());
+                int clockType;
+                String selectedClockType = (String) clockTypeComboBox.getSelectedItem();
+                switch (selectedClockType) {
+                    case "Scalaire":
+                        clockType = 0;
+                        break;
+                    case "Vectorielle":
+                        clockType = 1;
+                        break;
+                    default:
+                        clockType = 2;
+                        break;
+                }
+
+                // Run client in a separate thread to avoid freezing the GUI
+                new Thread(() -> {
+                    try {
+                        runClient(pid, clockType);
+                    } catch (Exception ex) {
+                        outputArea.append("Erreur: " + ex.getMessage() + "\n");
+                        ex.printStackTrace();
+                    }
+                }).start();
+            }
+        });
+
+        frame.setVisible(true);
+    }
+
+    private static void runClient(int pid, int clockType) throws Exception {
         // Initialisation de l'horloge
         Clock clock;
         if (clockType == 0) {
@@ -172,12 +241,12 @@ public class Client {
             String clockTypeStr = clockType == 0 ? "Horloge scalaire" : clockType == 1 ? "Horloge vectorielle" : "Horloge matricielle";
             String msg = "Processus " + pid + ", " + clockTypeStr + ": " + clock.getClockState();
             out.println(msg);
-            System.out.println("Message envoyé: " + msg);
+            outputArea.append("Message envoyé: " + msg + "\n");
 
             // Réception d'un message
             String received = in.readLine();
             if (received != null) {
-                System.out.println("Message reçu: " + received);
+                outputArea.append("Message reçu: " + received + "\n");
                 clock.merge(received);
             }
         }
